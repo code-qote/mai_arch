@@ -1,0 +1,40 @@
+# Build directories
+hw2/build/
+hw2/.cache/
+hw2/.pytest_cache/
+userver/build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test results
+test-results/
+*.xml
+
+# Temporary files
+*.tmp
+*.log
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# hw1 (not needed for Docker build)
+hw1/

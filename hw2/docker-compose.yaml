@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  user-service:
+    build:
+      context: ..
+      dockerfile: hw2/Dockerfile
+      target: user-service
+    container_name: user-service
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./configs:/app/configs:ro
+    networks:
+      - event-network
+    restart: unless-stopped
+
+  event-service:
+    build:
+      context: ..
+      dockerfile: hw2/Dockerfile
+      target: event-service
+    container_name: event-service
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./configs:/app/configs:ro
+    networks:
+      - event-network
+    restart: unless-stopped
+
+  book-service:
+    build:
+      context: ..
+      dockerfile: hw2/Dockerfile
+      target: book-service
+    container_name: book-service
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./configs:/app/configs:ro
+    networks:
+      - event-network
+    depends_on:
+      - event-service
+    restart: unless-stopped
+
+networks:
+  event-network:
+    driver: bridge

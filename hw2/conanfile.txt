@@ -1,0 +1,10 @@
+[requires]
+userver/2.16-rc
+jwt-cpp/0.7.1
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout

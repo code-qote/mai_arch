@@ -1,0 +1,48 @@
+components_manager:
+    task_processors:                  # Task processor is an executor for coroutine tasks
+        main-task-processor:          # Make a task processor for CPU-bound coroutine tasks.
+            worker_threads: 4         # Process tasks in 4 threads.
+  
+        fs-task-processor:            # A separate task processor for filesystem bound and synchronous tasks.
+            worker_threads: 1
+  
+    components:                       # Configuring components that were registered via component_list
+        server:
+            listener:                 # configuring the main listening socket...
+                port: 8081            # ...to listen on this port (different from user service)
+        logging:
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: debug
+                    overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
+  
+        default-secdist-provider:
+            config: ./configs/secdist.json
+
+        secdist:
+            provider: default-secdist-provider
+
+        jwt-component: {}
+
+        auth-middleware: {}               # JWT authentication middleware factory
+
+        default-server-middleware-pipeline-builder:
+            append:
+                - auth-middleware
+
+        handler-create-event:             # Event creation handler (requires auth)
+            path: /events                 # Registering handler by URL '/events'.
+            method: POST                  # It will only reply to POST requests.
+
+        handler-list-events:              # Event listing handler (public - no auth required)
+            path: /events/list            # Registering handler by URL '/events/list'.
+            method: POST                  # It will only reply to POST requests.
+
+        handler-book-places:              # Event places booking handler (requires auth)
+            path: /events/book            # Registering handler by URL '/events/book'.
+            method: POST                  # It will only reply to POST requests.
+
+        handler-cancel-places:            # Event places cancellation handler (requires auth)
+            path: /events/cancel          # Registering handler by URL '/events/cancel'.
+            method: POST                  # It will only reply to POST requests.
