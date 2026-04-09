@@ -83,7 +83,6 @@ workspace "Event Management System" "Архитектура системы уп�
             bookService -> database "17. [Оплата] Обновление статуса (Успешно)"
             
             bookService -> emailSystem "18. [Оплата] Отправка Email-билета"
-            bookService -> smsSystem "19. [Оплата] Отправка SMS-чека"
             
             autoLayout lr 400 300
         }

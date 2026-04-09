@@ -1,0 +1,1058 @@
+openapi: 3.0.3
+info:
+  title: Event Booking System API
+  description: |
+    API for managing users, events, and bookings in an event booking system.
+    
+    The system consists of three microservices:
+    - **User Service** (port 8080): Handles user registration, login, and search
+    - **Event Service** (port 8081): Manages events (create, list, book places, cancel places)
+    - **Book Service** (port 8082): Handles booking workflows (create booking, cancel booking)
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:8080
+    description: User Service
+  - url: http://localhost:8081
+    description: Event Service
+  - url: http://localhost:8082
+    description: Book Service
+
+tags:
+  - name: Users
+    description: User management operations
+  - name: Events
+    description: Event management operations
+  - name: Bookings
+    description: Booking management operations
+
+paths:
+  # User Service Endpoints
+  /register:
+    post:
+      tags:
+        - Users
+      summary: Register a new user
+      description: Register a new user with the specified role (organizer or participant). Admin role cannot be registered through this endpoint.
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              organizer:
+                summary: Register an organizer
+                value:
+                  username: "event_organizer"
+                  email: "organizer@example.com"
+                  first_name: "John"
+                  last_name: "Smith"
+                  password: "secure_password123"
+                  role: "organizer"
+              participant:
+                summary: Register a participant
+                value:
+                  username: "john_doe"
+                  email: "john@example.com"
+                  first_name: "John"
+                  last_name: "Doe"
+                  password: "my_password456"
+                  role: "participant"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              example:
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidXNlci0xMjMiLCJyb2xlIjoicGFydGljaXBhbnQiLCJleHAiOjE3MDAwMDAwMDB9.signature"
+        '400':
+          description: Bad request - invalid input or admin role attempted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_format:
+                  summary: Invalid request format
+                  value:
+                    error: "Invalid request format: missing required field 'username'"
+                admin_forbidden:
+                  summary: Admin registration forbidden
+                  value:
+                    error: "admin user cannot be registered"
+        '409':
+          description: Conflict - user already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "User with this username already exists"
+
+  /login:
+    post:
+      tags:
+        - Users
+      summary: Login user
+      description: Authenticate user with username and password, returns JWT token valid for 7 days.
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              username: "john_doe"
+              password: "my_password456"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              example:
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidXNlci0xMjMiLCJyb2xlIjoicGFydGljaXBhbnQiLCJleHAiOjE3MDAwMDAwMDB9.signature"
+        '400':
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid request format: missing required field 'password'"
+        '401':
+          description: Unauthorized - invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid credentials"
+
+  /search:
+    post:
+      tags:
+        - Users
+      summary: Search users
+      description: Search for users by various criteria. Requires admin role.
+      operationId: searchUsers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchUsersRequest'
+            examples:
+              by_username:
+                summary: Search by username
+                value:
+                  username: "john"
+              by_email:
+                summary: Search by email
+                value:
+                  email: "john@example.com"
+              by_name:
+                summary: Search by name
+                value:
+                  first_name: "John"
+                  last_name: "Doe"
+              empty_filter:
+                summary: Get all users
+                value: {}
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchUsersResponse'
+              example:
+                users:
+                  - id: "user-123"
+                    username: "john_doe"
+                    first_name: "John"
+                    last_name: "Doe"
+                    email: "john@example.com"
+                    role: "participant"
+                    created_at: "2024-01-15 10:30:00.000"
+        '400':
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid request format: malformed JSON"
+        '403':
+          description: Forbidden - only admin can search users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Access denied. Only admin can search users."
+
+  # Event Service Endpoints
+  /events:
+    post:
+      tags:
+        - Events
+      summary: Create event
+      description: Create a new event. Requires organizer or admin role.
+      operationId: createEvent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+            example:
+              name: "Summer Music Festival"
+              geo_position:
+                country: "USA"
+                city: "New York"
+                street: "Central Park West"
+              places_count: 500
+              event_time: "2024-07-15T18:00:00Z"
+      responses:
+        '201':
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+              example:
+                id: "event-456"
+                name: "Summer Music Festival"
+                geo_position:
+                  country: "USA"
+                  city: "New York"
+                  street: "Central Park West"
+                places_count: 500
+                organizer_id: "user-789"
+                event_time: "2024-07-15T18:00:00Z"
+                created_at: "2024-01-15 10:30:00.000"
+        '400':
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid request format: places_count must be positive"
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid or expired token"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Access denied. Only admin or organizer can create events."
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Method not allowed. Use POST to create an event."
+
+  /events/list:
+    post:
+      tags:
+        - Events
+      summary: List events
+      description: List events matching search criteria. All fields are optional filters.
+      operationId: listEvents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListEventsRequest'
+            examples:
+              all_events:
+                summary: Get all events
+                value: {}
+              by_city:
+                summary: Filter by city
+                value:
+                  city: "New York"
+              by_organizer:
+                summary: Filter by organizer
+                value:
+                  organizer_id: "user-789"
+              by_id:
+                summary: Get specific event
+                value:
+                  id: "event-456"
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListEventsResponse'
+              example:
+                events:
+                  - id: "event-456"
+                    name: "Summer Music Festival"
+                    geo_position:
+                      country: "USA"
+                      city: "New York"
+                      street: "Central Park West"
+                    places_count: 498
+                    organizer_id: "user-789"
+                    event_time: "2024-07-15T18:00:00Z"
+                    created_at: "2024-01-15 10:30:00.000"
+        '400':
+          description: Bad request - invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid request format: malformed JSON"
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Method not allowed. Use POST to list events."
+
+  /events/book:
+    post:
+      tags:
+        - Events
+      summary: Reserve event places (internal)
+      description: |
+        Reserve places for an event. This is an internal endpoint called by the Book Service.
+        Requires participant or admin role.
+      operationId: reserveEventPlaces
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReservePlacesRequest'
+            example:
+              event_id: "event-456"
+              places_count: 2
+      responses:
+        '200':
+          description: Places reserved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservePlacesResponse'
+              example:
+                success: true
+                event:
+                  id: "event-456"
+                  name: "Summer Music Festival"
+                  geo_position:
+                    country: "USA"
+                    city: "New York"
+                    street: "Central Park West"
+                  places_count: 498
+                  organizer_id: "user-789"
+                  event_time: "2024-07-15T18:00:00Z"
+                  created_at: "2024-01-15 10:30:00.000"
+        '400':
+          description: Bad request - invalid input or no available places
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                no_places:
+                  summary: No available places
+                  value:
+                    error: "Not enough available places"
+                invalid_event:
+                  summary: Event not found
+                  value:
+                    error: "Event not found"
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid or expired token"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Only participants and admins can book places"
+
+  /events/cancel:
+    post:
+      tags:
+        - Events
+      summary: Release event places (internal)
+      description: |
+        Release previously reserved places for an event. This is an internal endpoint called by the Book Service.
+        Requires participant or admin role.
+      operationId: releaseEventPlaces
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleasePlacesRequest'
+            example:
+              event_id: "event-456"
+      responses:
+        '200':
+          description: Places released successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleasePlacesResponse'
+              example:
+                success: true
+                event:
+                  id: "event-456"
+                  name: "Summer Music Festival"
+                  geo_position:
+                    country: "USA"
+                    city: "New York"
+                    street: "Central Park West"
+                  places_count: 500
+                  organizer_id: "user-789"
+                  event_time: "2024-07-15T18:00:00Z"
+                  created_at: "2024-01-15 10:30:00.000"
+        '400':
+          description: Bad request - invalid input or booking not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Booking not found for this event"
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid or expired token"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Only participants and admins can cancel bookings"
+
+  # Book Service Endpoints
+  /bookings/book:
+    post:
+      tags:
+        - Bookings
+      summary: Create a booking
+      description: |
+        Create a new booking for an event. This endpoint orchestrates the full booking workflow:
+        1. Creates a booking record in pending state
+        2. Calls Event Service to reserve places
+        3. Processes payment
+        4. Updates booking to confirmed state
+        5. Sends confirmation email
+        
+        Requires participant or admin role.
+      operationId: createBooking
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookingRequest'
+            example:
+              event_id: "event-456"
+              places_count: 2
+      responses:
+        '200':
+          description: Booking created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateBookingResponse'
+              example:
+                success: true
+                booking:
+                  id: "booking-789"
+                  event_id: "event-456"
+                  user_id: "user-123"
+                  places_count: 2
+                  status: "confirmed"
+                  created_at: "2024-01-15 10:30:00.000"
+        '400':
+          description: Bad request - invalid input or reservation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_format:
+                  summary: Invalid request format
+                  value:
+                    error: "Invalid request format: missing required field 'event_id'"
+                reservation_failed:
+                  summary: Failed to reserve places
+                  value:
+                    error: "Failed to reserve places in event service"
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid or expired token"
+        '402':
+          description: Payment required - payment processing failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Payment processing failed"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Only participants and admins can book events"
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Method not allowed. Use POST for booking."
+
+  /bookings/cancel:
+    post:
+      tags:
+        - Bookings
+      summary: Cancel a booking
+      description: |
+        Cancel an existing booking. This endpoint orchestrates the full cancellation workflow:
+        1. Retrieves the booking record
+        2. Validates ownership (user can only cancel their own bookings, unless admin)
+        3. Calls Event Service to release places
+        4. Processes refund
+        5. Updates booking to cancelled state
+        6. Sends cancellation email
+        
+        Requires participant or admin role.
+      operationId: cancelBooking
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelBookingRequest'
+            example:
+              booking_id: "booking-789"
+              event_id: "event-456"
+      responses:
+        '200':
+          description: Booking cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelBookingResponse'
+              example:
+                success: true
+                booking:
+                  id: "booking-789"
+                  event_id: "event-456"
+                  user_id: "user-123"
+                  places_count: 2
+                  status: "cancelled"
+                  created_at: "2024-01-15 10:30:00.000"
+        '400':
+          description: Bad request - booking already cancelled or invalid state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                already_cancelled:
+                  summary: Booking already cancelled
+                  value:
+                    error: "Booking is already cancelled"
+                invalid_state:
+                  summary: Invalid booking state
+                  value:
+                    error: "Booking cannot be cancelled in current state"
+        '401':
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Invalid or expired token"
+        '403':
+          description: Forbidden - not owner of booking
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "You can only cancel your own bookings"
+        '404':
+          description: Not found - booking does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Booking not found"
+        '405':
+          description: Method not allowed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Method not allowed. Use POST for canceling bookings."
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /register or /login endpoints
+
+  schemas:
+    # User Service Schemas
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - first_name
+        - last_name
+        - password
+        - role
+      properties:
+        username:
+          type: string
+          description: Unique username for the user
+          minLength: 3
+          maxLength: 50
+          example: "john_doe"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "john@example.com"
+        first_name:
+          type: string
+          description: User's first name
+          minLength: 1
+          maxLength: 100
+          example: "John"
+        last_name:
+          type: string
+          description: User's last name
+          minLength: 1
+          maxLength: 100
+          example: "Doe"
+        password:
+          type: string
+          format: password
+          description: User's password
+          minLength: 6
+          example: "secure_password123"
+        role:
+          type: string
+          enum: [participant, organizer]
+          description: User's role (admin cannot be registered)
+          example: "participant"
+
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          description: User's username
+          example: "john_doe"
+        password:
+          type: string
+          format: password
+          description: User's password
+          example: "secure_password123"
+
+    TokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token for authentication
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    SearchUsersRequest:
+      type: object
+      description: All fields are optional. Empty object returns all users.
+      properties:
+        id:
+          type: string
+          description: Filter by user ID
+          example: "user-123"
+        username:
+          type: string
+          description: Filter by username (partial match)
+          example: "john"
+        email:
+          type: string
+          description: Filter by email (partial match)
+          example: "john@example.com"
+        first_name:
+          type: string
+          description: Filter by first name (partial match)
+          example: "John"
+        last_name:
+          type: string
+          description: Filter by last name (partial match)
+          example: "Doe"
+
+    SearchUsersResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          description: List of users matching the search criteria
+          items:
+            $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      description: User information
+      properties:
+        id:
+          type: string
+          description: Unique user identifier
+          example: "user-123"
+        username:
+          type: string
+          description: User's username
+          example: "john_doe"
+        first_name:
+          type: string
+          description: User's first name
+          example: "John"
+        last_name:
+          type: string
+          description: User's last name
+          example: "Doe"
+        email:
+          type: string
+          description: User's email address
+          example: "john@example.com"
+        role:
+          type: string
+          enum: [participant, organizer, admin]
+          description: User's role
+          example: "participant"
+        created_at:
+          type: string
+          description: Timestamp when user was created
+          example: "2024-01-15 10:30:00.000"
+
+    # Event Service Schemas
+    CreateEventRequest:
+      type: object
+      required:
+        - name
+        - geo_position
+        - places_count
+        - event_time
+      properties:
+        name:
+          type: string
+          description: Name of the event
+          minLength: 1
+          maxLength: 200
+          example: "Summer Music Festival"
+        geo_position:
+          $ref: '#/components/schemas/GeoPosition'
+        places_count:
+          type: integer
+          description: Total number of available places
+          minimum: 1
+          example: 500
+        event_time:
+          type: string
+          description: Date and time of the event (ISO 8601 format)
+          example: "2024-07-15T18:00:00Z"
+
+    GeoPosition:
+      type: object
+      required:
+        - country
+        - city
+        - street
+      description: Geographic location of the event
+      properties:
+        country:
+          type: string
+          description: Country name
+          example: "USA"
+        city:
+          type: string
+          description: City name
+          example: "New York"
+        street:
+          type: string
+          description: Street address or venue name
+          example: "Central Park West"
+
+    Event:
+      type: object
+      description: Event information
+      properties:
+        id:
+          type: string
+          description: Unique event identifier
+          example: "event-456"
+        name:
+          type: string
+          description: Name of the event
+          example: "Summer Music Festival"
+        geo_position:
+          $ref: '#/components/schemas/GeoPosition'
+        places_count:
+          type: integer
+          description: Current number of available places
+          example: 498
+        organizer_id:
+          type: string
+          description: ID of the user who created the event
+          example: "user-789"
+        event_time:
+          type: string
+          description: Date and time of the event
+          example: "2024-07-15T18:00:00Z"
+        created_at:
+          type: string
+          description: Timestamp when event was created
+          example: "2024-01-15 10:30:00.000"
+
+    ListEventsRequest:
+      type: object
+      description: All fields are optional filters. Empty object returns all events.
+      properties:
+        id:
+          type: string
+          description: Filter by event ID
+          example: "event-456"
+        name:
+          type: string
+          description: Filter by event name (partial match)
+          example: "Music"
+        organizer_id:
+          type: string
+          description: Filter by organizer ID
+          example: "user-789"
+        country:
+          type: string
+          description: Filter by country
+          example: "USA"
+        city:
+          type: string
+          description: Filter by city
+          example: "New York"
+
+    ListEventsResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          description: List of events matching the search criteria
+          items:
+            $ref: '#/components/schemas/Event'
+
+    ReservePlacesRequest:
+      type: object
+      required:
+        - event_id
+      properties:
+        event_id:
+          type: string
+          description: ID of the event to reserve places for
+          example: "event-456"
+        places_count:
+          type: integer
+          description: Number of places to reserve (default 1)
+          minimum: 1
+          default: 1
+          example: 2
+
+    ReservePlacesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the reservation was successful
+          example: true
+        event:
+          $ref: '#/components/schemas/Event'
+
+    ReleasePlacesRequest:
+      type: object
+      required:
+        - event_id
+      properties:
+        event_id:
+          type: string
+          description: ID of the event to release places for
+          example: "event-456"
+
+    ReleasePlacesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the release was successful
+          example: true
+        event:
+          $ref: '#/components/schemas/Event'
+
+    # Book Service Schemas
+    CreateBookingRequest:
+      type: object
+      required:
+        - event_id
+      properties:
+        event_id:
+          type: string
+          description: ID of the event to book
+          example: "event-456"
+        places_count:
+          type: integer
+          description: Number of places to book (default 1)
+          minimum: 1
+          default: 1
+          example: 2
+
+    CreateBookingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the booking was successful
+          example: true
+        booking:
+          $ref: '#/components/schemas/Booking'
+
+    CancelBookingRequest:
+      type: object
+      required:
+        - booking_id
+        - event_id
+      properties:
+        booking_id:
+          type: string
+          description: ID of the booking to cancel
+          example: "booking-789"
+        event_id:
+          type: string
+          description: ID of the event associated with the booking
+          example: "event-456"
+
+    CancelBookingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether the cancellation was successful
+          example: true
+        booking:
+          $ref: '#/components/schemas/Booking'
+
+    Booking:
+      type: object
+      description: Booking information
+      properties:
+        id:
+          type: string
+          description: Unique booking identifier
+          example: "booking-789"
+        event_id:
+          type: string
+          description: ID of the booked event
+          example: "event-456"
+        user_id:
+          type: string
+          description: ID of the user who made the booking
+          example: "user-123"
+        places_count:
+          type: integer
+          description: Number of places booked
+          example: 2
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, failed]
+          description: Current status of the booking
+          example: "confirmed"
+        created_at:
+          type: string
+          description: Timestamp when booking was created
+          example: "2024-01-15 10:30:00.000"
+
+    ErrorResponse:
+      type: object
+      description: Error response returned when an operation fails
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Error message describing what went wrong"
