@@ -1,0 +1,62 @@
+components_manager:
+    task_processors:                  # Task processor is an executor for coroutine tasks
+        main-task-processor:          # Make a task processor for CPU-bound coroutine tasks.
+            worker_threads: 4         # Process tasks in 4 threads.
+ 
+        fs-task-processor:            # A separate task processor for filesystem bound and synchronous tasks.
+            worker_threads: 1
+ 
+    components:                       # Configuring components that were registered via component_list
+        server:
+            listener:                 # configuring the main listening socket...
+                port: 8080            # ...to listen on this port and...
+        logging:
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: debug
+                    overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
+ 
+        testsuite-support:
+            testsuite-periodic-update-enabled: true
+            testsuite-pg-execute-timeout: 300s
+            testsuite-pg-statement-timeout: 300s
+            testsuite-pg-readonly-master-expected: false
+
+        default-secdist-provider:
+            config: ./configs/secdist.json
+
+        secdist:
+            provider: default-secdist-provider
+
+        # DNS client for PostgreSQL
+        dns-client:
+            fs-task-processor: fs-task-processor
+
+        postgres-db:
+            dbconnection#env: POSTGRES_DSN
+            dbconnection#fallback: 'postgresql://eventbooking:eventbooking_password@localhost:5432/eventbooking'
+            blocking_task_processor: fs-task-processor
+            dns_resolver: async
+            sync-start: true
+            connlimit_mode: manual
+
+        jwt-component: {}
+
+        auth-middleware: {}               # JWT authentication middleware factory
+
+        default-server-middleware-pipeline-builder:
+            append:
+                - auth-middleware
+
+        handler-register:                 # User registration handler (public - no auth required)
+            path: /register               # Registering handler by URL '/register'.
+            method: POST                  # It will only reply to POST requests.
+
+        handler-login:                    # User login handler (public - no auth required)
+            path: /login                  # Registering handler by URL '/login'.
+            method: POST                  # It will only reply to POST requests.
+
+        handler-search:                   # User search handler (requires authentication)
+            path: /search                 # Registering handler by URL '/search'.
+            method: POST                  # It will only reply to POST requests.

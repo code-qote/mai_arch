@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: dockerhub.timeweb.cloud/library/postgres:15
+    container_name: event-booking-postgres
+    environment:
+      POSTGRES_USER: eventbooking
+      POSTGRES_PASSWORD: eventbooking_password
+      POSTGRES_DB: eventbooking
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+    networks:
+      - event-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventbooking -d eventbooking"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7.0
+    container_name: event-booking-mongodb
+    environment:
+      MONGO_INITDB_DATABASE: analytics
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - event-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: ..
+      dockerfile: hw4/Dockerfile
+      target: user-service
+    container_name: user-service
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./configs:/app/configs:ro
+    networks:
+      - event-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  event-service:
+    build:
+      context: ..
+      dockerfile: hw4/Dockerfile
+      target: event-service
+    container_name: event-service
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./configs:/app/configs:ro
+    networks:
+      - event-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  book-service:
+    build:
+      context: ..
+      dockerfile: hw4/Dockerfile
+      target: book-service
+    container_name: book-service
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./configs:/app/configs:ro
+    networks:
+      - event-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      event-service:
+        condition: service_started
+    restart: unless-stopped
+
+  analytics-service:
+    build:
+      context: ..
+      dockerfile: hw4/services/analytics/Dockerfile
+    container_name: analytics-service
+    ports:
+      - "8083:8083"
+    volumes:
+      - ./services/analytics/static_config.yaml:/app/configs/static_config.yaml:ro
+    networks:
+      - event-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  event-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongodb_data:
