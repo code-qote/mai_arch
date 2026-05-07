@@ -1,0 +1,16 @@
+[requires]
+userver/2.16-rc
+jwt-cpp/0.7.1
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[options]
+userver/*:with_postgresql=True
+userver/*:with_mongo=True
+userver/*:with_clickhouse=False
+userver/*:with_redis=True
+
+[layout]
+cmake_layout

@@ -1,0 +1,55 @@
+components_manager:
+    components:
+        server:
+            listener:
+                port: 8083
+                task_processor: main-task-processor
+        logging:
+            fs-task-processor: fs-task-processor
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: debug
+                    overflow_behavior: discard
+        testsuite-support: {}
+
+        http-client: {}
+
+        dns-client:
+            fs-task-processor: fs-task-processor
+
+        analytics-mongo:
+            dbconnection: 'mongodb://localhost:27017/analytics'
+            appname: 'analytics-service'
+            conn_timeout: 2s
+            so_timeout: 10s
+            queue_timeout: 1s
+            initial_size: 16
+            max_size: 128
+            idle_limit: 64
+            connecting_limit: 8
+            local_threshold: 15ms
+            stats_verbosity: terse
+
+        handler-log-activity:
+            path: /analytics/log
+            method: POST
+            task_processor: main-task-processor
+
+        handler-record-search:
+            path: /analytics/search
+            method: POST
+            task_processor: main-task-processor
+
+        handler-event-stats:
+            path: /analytics/stats
+            method: POST,GET
+            task_processor: main-task-processor
+
+    task_processors:
+        main-task-processor:
+            worker_threads: 4
+        fs-task-processor:
+            worker_threads: 2
+
+    default_task_processor: main-task-processor

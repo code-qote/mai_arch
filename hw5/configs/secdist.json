@@ -1,0 +1,19 @@
+{
+    "jwt_secret": "test_jwt_secret_key_for_development_only",
+    "redis_settings": {
+        "redis-cache": {
+            "password": "",
+            "sentinels": [
+                {
+                    "host": "localhost",
+                    "port": 16379
+                }
+            ],
+            "shards": [
+                {
+                    "name": "test_master0"
+                }
+            ]
+        }
+    }
+}

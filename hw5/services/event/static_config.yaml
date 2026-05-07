@@ -1,0 +1,90 @@
+components_manager:
+    task_processors:                  # Task processor is an executor for coroutine tasks
+        main-task-processor:          # Make a task processor for CPU-bound coroutine tasks.
+            worker_threads: 4         # Process tasks in 4 threads.
+ 
+        fs-task-processor:            # A separate task processor for filesystem bound and synchronous tasks.
+            worker_threads: 1
+ 
+    components:                       # Configuring components that were registered via component_list
+        server:
+            listener:                 # configuring the main listening socket...
+                port: 8081            # ...to listen on this port and...
+        logging:
+            loggers:
+                default:
+                    file_path: '@stderr'
+                    level: debug
+                    overflow_behavior: discard  # Drop logs if the system is too busy to write them down.
+ 
+        testsuite-support:
+            testsuite-periodic-update-enabled: true
+            testsuite-pg-execute-timeout: 300s
+            testsuite-pg-statement-timeout: 300s
+            testsuite-pg-readonly-master-expected: false
+
+        default-secdist-provider:
+            config: ./configs/secdist.json
+
+        secdist:
+            provider: default-secdist-provider
+
+        # DNS client for PostgreSQL
+        dns-client:
+            fs-task-processor: fs-task-processor
+
+        postgres-db:
+            dbconnection#env: POSTGRES_DSN
+            dbconnection#fallback: 'postgresql://eventbooking:eventbooking_password@localhost:5432/eventbooking'
+            blocking_task_processor: fs-task-processor
+            dns_resolver: async
+            sync-start: true
+            connlimit_mode: manual
+
+        # Redis cache connection
+        redis-cache-db:
+            thread_pools:
+                redis_thread_pool_size: 8
+                sentinel_thread_pool_size: 1
+            groups:
+                - config_name: redis-cache  # Key to lookup in secdist configuration
+                  db: redis-cache           # Name to refer to the cluster in GetClient()
+            subscribe_groups: []
+
+        # Redis cache component
+        redis-cache: {}
+
+        # Rate limiter component
+        rate-limiter: {}
+
+        jwt-component: {}
+
+        auth-middleware: {}               # JWT authentication middleware factory
+
+        default-server-middleware-pipeline-builder:
+            append:
+                - auth-middleware
+
+        handler-create-event:             # Event creation handler
+            path: /events                 # Registering handler by URL '/events'.
+            method: POST                  # It will only reply to POST requests.
+
+        handler-list-events:              # Event listing handler
+            path: /events/list            # Registering handler by URL '/events/list'.
+            method: POST                  # It will only reply to POST requests.
+
+        handler-book-places:              # Book places handler (internal)
+            path: /events/book            # Registering handler by URL '/events/book'.
+            method: POST                  # It will only reply to POST requests.
+
+        handler-cancel-places:            # Cancel places handler (internal)
+            path: /events/cancel          # Registering handler by URL '/events/cancel'.
+            method: POST                  # It will only reply to POST requests.
+
+        handler-get-participants:         # Get event participants handler
+            path: /events/participants    # Registering handler by URL '/events/participants'.
+            method: POST                  # It will only reply to POST requests.
+
+        handler-get-user-events:          # Get user's booked events handler
+            path: /events/user-events     # Registering handler by URL '/events/user-events'.
+            method: POST                  # It will only reply to POST requests.
